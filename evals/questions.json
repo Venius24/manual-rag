@@ -1,0 +1,42 @@
+[
+    {
+        "question": "How can I measure how quickly a function changes between two different input values?",
+        "expected_text": "average rate of change"
+    },
+    {
+        "question": "How can I know how fast a function is changing at one exact point?",
+        "expected_text": "instantaneous rate of change"
+    },
+    {
+        "question": "What line just touches a curve at a particular point and represents its local slope?",
+        "expected_text": "tangent line"
+    },
+    {
+        "question": "How can I determine the slope of a function at one specific input value?",
+        "expected_text": "derivative"
+    },
+    {
+        "question": "How do I know whether a function has a well-defined slope at every point in an interval?",
+        "expected_text": "Differentiability"
+    },
+    {
+        "question": "How do I differentiate two functions that are multiplied together?",
+        "expected_text": "Product Rule"
+    },
+    {
+        "question": "How do I differentiate one function divided by another function?",
+        "expected_text": "Quotient Rule"
+    },
+    {
+        "question": "How do I find how the slope of a function itself is changing?",
+        "expected_text": "second derivative"
+    },
+    {
+        "question": "How do I differentiate a function that is inside another function?",
+        "expected_text": "Chain Rule"
+    },
+    {
+        "question": "If two quantities change over time and depend on each other, how can I find the rate at which one changes from the rate of the other?",
+        "expected_text": "Related Rates"
+    }
+]
