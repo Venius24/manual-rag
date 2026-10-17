@@ -75,3 +75,24 @@ def test_extract_text_reads_all_pages(tmp_path):
     assert "First page" in text and "Second page" in text
     assert text.index("First") < text.index("Second")
     assert "\x00" not in text
+
+
+def test_normalize_ligatures_expands_words():
+    from ingest import normalize_ligatures
+
+    assert normalize_ligatures("Deﬁnition of inﬂection, eﬃcient") == "Definition of inflection, efficient"
+    assert normalize_ligatures("plain ascii") == "plain ascii"
+    assert normalize_ligatures("") == ""
+
+
+def test_extract_text_ligatures_opt_in(tmp_path):
+    import pymupdf
+
+    from ingest import extract_text
+
+    path = tmp_path / "lig.pdf"
+    doc = pymupdf.open()
+    doc.new_page().insert_text((72, 72), "deﬁnition", fontname="helv")
+    doc.save(path)
+    assert "fi" in extract_text(str(path), fix_ligatures=True)
+    assert "ﬁ" not in extract_text(str(path), fix_ligatures=True)
