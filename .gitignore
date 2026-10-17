@@ -1,5 +1,6 @@
 .env
 venv/
-__pycache__/.pytest_cache/
+__pycache__/
+.pytest_cache/
 .venv/
 eval/cache/
