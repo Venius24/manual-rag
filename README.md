@@ -142,7 +142,7 @@ on first use. No database or API key is needed for tests or eval.
 - The eval runs an in-memory re-implementation of the pgvector search (same
   chunking code, cosine ranking). The "BM25" row is not the app's PostgreSQL
   full-text search, which was not run (no Postgres in the eval environment).
-- The runs were tuned on nothing: the set was frozen before experiments, but the
+- The set was frozen before any experiment, but the
   ligature fix was chosen after seeing failures on this same set, so its
   before/after gain is optimistic.
 - Retrieval only. The generation scores in the section below were produced by the
