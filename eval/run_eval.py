@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "app"))
 sys.path.insert(0, str(ROOT / "eval"))
 
-from ingest import chunk_text, extract_text  # noqa: E402
+from ingest import chunk_text, extract_text, normalize_ligatures  # noqa: E402
 from retrieval import (BM25, chunk_spans, first_relevant_rank, rank_desc,  # noqa: E402
                        rrf_fuse, summarize)
 
@@ -87,6 +87,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--configs", nargs="*", default=list(CONFIGS))
+    ap.add_argument("--fix-ligatures", action="store_true",
+                    help="expand PDF ligatures (fi, fl, ...) before chunking")
     ap.add_argument("--tag", default="retrieval")
     ap.add_argument("--out-dir", default=str(ROOT / "eval" / "results"))
     args = ap.parse_args()
@@ -99,6 +101,14 @@ def main():
 
     text = extract_text(str(PDF))
     questions = load_questions()
+    if args.fix_ligatures:
+        # gold spans are offsets into the raw text; map them into the normalised
+        # text (ligature expansion is local, so prefix length gives the new offset)
+        raw = text
+        text = normalize_ligatures(raw)
+        for q in questions:
+            q["spans"] = [[len(normalize_ligatures(raw[:s])), len(normalize_ligatures(raw[:e]))]
+                          for s, e in q["spans"]]
     answerable = [q for q in questions if q["answerable"]]
     unanswerable = [q for q in questions if not q["answerable"]]
 
@@ -169,7 +179,7 @@ def main():
         "candidate_pool": POOL, "ks": list(KS),
         "relevance_rule": "chunk covers >=50% of a gold evidence span",
         "corpus_sha256": sha256(PDF), "questions_sha256": sha256(QUESTIONS),
-        "corpus_chars": len(text),
+        "corpus_chars": len(text), "fix_ligatures": args.fix_ligatures,
         "env": {"python": platform.python_version(), "torch": torch.__version__,
                 "device": "cuda" if torch.cuda.is_available() else "cpu"},
         "results": results,
