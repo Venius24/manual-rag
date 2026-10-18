@@ -1,7 +1,6 @@
 import psycopg
 
-
-DB_URL = "postgresql://postgres:postgres@127.0.0.1:5433/rag"
+from db import DB_URL
 
 
 def keyword_search(query: str, limit=5):

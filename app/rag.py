@@ -2,27 +2,28 @@ from search import search
 from llm import generate
 
 
-question = input("Вопрос: ")
+def main():
+    question = input("Вопрос: ")
 
-results = search(question, limit=5)
+    results = search(question, limit=5)
 
-context_parts = []
-
-for chunk_id, text, distance in results:
-    context_parts.append(
+    context = "\n\n".join(
         f"[Chunk {chunk_id}]\n{text}"
+        for chunk_id, text, distance in results
     )
 
-context = "\n\n".join(context_parts)
+    answer = generate(question, context)
 
-answer = generate(question, context)
+    print("\n===== ANSWER =====")
+    print(answer)
 
-print("\n===== ANSWER =====")
-print(answer)
+    print("\n===== SOURCES =====")
 
-print("\n===== SOURCES =====")
+    for chunk_id, text, distance in results:
+        print(
+            f"Chunk {chunk_id} | distance={distance:.4f}"
+        )
 
-for chunk_id, text, distance in results:
-    print(
-        f"Chunk {chunk_id} | distance={distance:.4f}"
-    )
+
+if __name__ == "__main__":
+    main()

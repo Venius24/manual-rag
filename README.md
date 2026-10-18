@@ -1,84 +1,36 @@
 # Manual RAG
+n[![tests](https://github.com/Venius24/manual-rag/actions/workflows/tests.yml/badge.svg)](https://github.com/Venius24/manual-rag/actions/workflows/tests.yml)
 
-A Retrieval-Augmented Generation system built from scratch without LangChain or LlamaIndex.
-
-The project implements the RAG pipeline manually without LangChain or LlamaIndex and includes retrieval evaluation, generation evaluation, and experiments with different retrieval strategies.
-
-RAG service built from scratch with FastAPI, PostgreSQL/pgvector, BGE-M3, DeepSeek and evaluation pipelines.
+A Retrieval-Augmented Generation service built from scratch, without LangChain or
+LlamaIndex: FastAPI, PostgreSQL/pgvector, BGE-M3 embeddings and DeepSeek, plus a
+reproducible retrieval evaluation that compares dense, BM25, hybrid and reranked
+retrieval.
 
 ## Architecture
 
 ```text
-PDF
- ↓
-PyMuPDF
- ↓
-Chunking
- ↓
-BGE-M3 embeddings
- ↓
-PostgreSQL + pgvector
- ↓
-Cosine similarity search
- ↓
-Top-5 chunks
- ↓
-DeepSeek
- ↓
-Answer + sources
- ↓
-FastAPI
+PDF ─► PyMuPDF ─► chunking (1500 chars, 300 overlap) ─► BGE-M3 embeddings (1024-d)
+                                                              │
+                                                              ▼
+                                                    PostgreSQL + pgvector
+                                                              │
+question ─► BGE-M3 embedding ─► cosine search, top-5 ─────────┘
+                                        │
+                                        ▼
+                         DeepSeek, answer from context only ─► answer + sources (FastAPI)
 ```
+
+The service uses dense retrieval. Hybrid (dense + Postgres full-text search, RRF)
+and a cross-encoder reranker are implemented in `app/hybrid_search.py` and
+`app/search.py::search_with_rerank`. Both scored higher on top-rank quality in the
+evaluation below, but they are not the default yet: the evaluated hybrid uses
+BM25 rather than the app's Postgres full-text search, and the reranker adds
+seconds of CPU latency per query. Switching the default is the next step.
 
 ## Stack
 
-- Python
-- FastAPI
-- PostgreSQL
-- pgvector
-- Docker / Docker Compose
-- BAAI/bge-m3
-- Sentence Transformers
-- DeepSeek API
-- PyMuPDF
-- psycopg
-
-## RAG Pipeline
-
-Documents are extracted from PDF files and split into overlapping chunks.
-
-Current chunking configuration:
-
-```text
-chunk_size = 1500 characters
-overlap    = 300 characters
-```
-
-Each chunk is embedded using `BAAI/bge-m3`.
-
-Embedding dimension:
-
-```text
-1024
-```
-
-Embeddings and source text are stored in PostgreSQL using pgvector.
-
-At query time:
-
-```text
-Question
-   ↓
-BGE-M3 embedding
-   ↓
-pgvector cosine search
-   ↓
-Top-5 chunks
-   ↓
-DeepSeek
-   ↓
-Answer grounded in retrieved context
-```
+Python · FastAPI · PostgreSQL · pgvector · psycopg · BAAI/bge-m3 · bge-reranker-v2-m3 ·
+Sentence Transformers · PyMuPDF · DeepSeek API · Docker Compose · pytest
 
 ## Results (reproducible retrieval evaluation)
 
@@ -145,52 +97,20 @@ on first use. No database or API key is needed for tests or eval.
 - The set was frozen before any experiment, but the
   ligature fix was chosen after seeing failures on this same set, so its
   before/after gain is optimistic.
-- Retrieval only. The generation scores in the section below were produced by the
-  original author with an LLM judge and were not re-run; abstention behaviour of
-  the generator was not evaluated.
-- The earlier "Retrieval Evaluation" table below (10-question set) is the original
-  author's and is not reproduced by any committed script; it disagrees with the
-  results above on reranking/hybrid, and the newer, larger set should be preferred.
+- Retrieval only. The generation scores below come from an earlier 10-question set
+  and were not re-run on this one; abstention behaviour of the generator was not
+  evaluated.
 
 ### How this was built
 
-The tests, eval set, harness and analysis on branch `feat/eval-and-tests` were
-developed with an AI coding agent (Claude Code) and verified by the test suite and
-the eval harness; all reported numbers come from the committed result files.
-
-## Retrieval Evaluation (original, 10 questions — legacy)
-
-A small paraphrased evaluation dataset was created to test whether the retriever can find relevant information when the question does not exactly match the wording of the source document.
-
-Metrics:
-
-- Recall@5
-- Mean Reciprocal Rank (MRR)
-
-### Experiments
-
-| Experiment | Chunk size | Overlap | Recall@5 | MRR |
-|---|---:|---:|---:|---:|
-| BGE-M3 baseline | 1500 | 0 | 0.60 | 0.39 |
-| BGE-M3 + overlap | 1500 | 300 | **0.80** | **0.41** |
-| + BGE reranker | 1500 | 300 | 0.50 | 0.35 |
-| + Hybrid Search (FTS + RRF) | 1500 | 300 | 0.70 | 0.38 |
-
-The simplest BGE-M3 retrieval pipeline with overlapping chunks produced the best results on the current evaluation set.
-
-Both reranking and hybrid retrieval were tested but rejected because they reduced measured retrieval quality.
-
-### Evaluation limitation
-
-The current retrieval evaluation uses expected text matches inside retrieved chunks.
-
-Therefore Recall@5 and MRR should be treated as proxy metrics rather than a complete semantic relevance evaluation.
-
-A larger manually annotated evaluation dataset would provide a more reliable measurement.
+The pipeline, the API and the first reranker/hybrid experiments were written by
+hand. The test suite, the 50-question eval set, the harness and the error
+analysis were added with an AI coding agent (Claude Code) and checked by the
+tests; every reported number comes from the committed result files.
 
 ## Generation Evaluation
 
-Final RAG answers were evaluated using an LLM-as-a-Judge approach.
+Final RAG answers on the earlier 10-question set (`evals/questions.json`, script `app/evaluate_answer.py`) were evaluated using an LLM-as-a-Judge approach.
 
 The judge scored:
 
@@ -250,86 +170,40 @@ Returns the current API status.
 
 ## Running with Docker
 
-Create a `.env` file:
-
-```env
-DEEPSEEK_API_KEY=your_key_here
-```
-
-Start the application:
-
 ```bash
-docker compose up --build
+cp .env.example .env        # then set DEEPSEEK_API_KEY
+docker compose up --build -d
+python app/index.py         # creates the table and indexes data/Calculus-Lecture.pdf
 ```
 
-The API will be available at:
+`app/index.py` connects to `DB_URL` (default: the compose Postgres on
+`127.0.0.1:5433`) and creates the `vector` extension and the `chunks` table if
+they do not exist. The API is at `http://127.0.0.1:8000`, Swagger at `/docs`.
+Inside Docker the API reaches Postgres at `postgres:5432`.
+
+For a quick terminal session without the API: `python app/rag.py`.
+
+## Project structure
 
 ```text
-http://127.0.0.1:8000
-```
-
-Swagger:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-PostgreSQL is exposed locally on port `5433`.
-
-Inside Docker, the API communicates with PostgreSQL using:
-
-```text
-postgres:5432
-```
-
-## Project Structure
-
-```text
-my-rag/
+manual-rag/
 ├── app/
-│   ├── main.py
-│   ├── ingest.py
-│   ├── index.py
-│   ├── embeddings.py
-│   ├── search.py
-│   ├── llm.py
-│   ├── rag.py
-│   ├── evaluate.py
-│   ├── evaluate_answers.py
-│   ├── reranker.py
-│   ├── keyword_search.py
-│   └── hybrid_search.py
-│
-├── data/
-│   └── lecture.pdf
-│
-├── evals/
-│   └── questions.json        # original 10-question set
-├── eval/                     # frozen 50-question set, harness, results, analysis
-├── tests/                    # offline pytest suite
-│
+│   ├── main.py              # FastAPI: /ask, /health
+│   ├── db.py                # DB_URL and schema
+│   ├── ingest.py            # PDF extraction and chunking
+│   ├── index.py             # embed chunks and write them to pgvector
+│   ├── embeddings.py        # BGE-M3
+│   ├── search.py            # dense search, dense + reranker
+│   ├── keyword_search.py    # Postgres full-text search
+│   ├── hybrid_search.py     # RRF fusion
+│   ├── reranker.py          # bge-reranker-v2-m3
+│   ├── llm.py               # DeepSeek client
+│   ├── rag.py               # terminal Q&A
+│   └── evaluate_answer.py   # LLM-as-a-judge generation eval
+├── eval/                    # frozen 50-question set, harness, results, analysis
+├── evals/questions.json     # earlier 10-question set used by evaluate_answer.py
+├── tests/                   # offline pytest suite
+├── data/Calculus-Lecture.pdf
 ├── Dockerfile
-├── docker-compose.yml
-├── requirements.txt
-└── README.md
+└── docker-compose.yml
 ```
-
-## Key Findings
-
-Increasing retrieval complexity did not automatically improve quality.
-
-Adding chunk overlap improved Recall@5 from `0.60` to `0.80`.
-
-However:
-
-```text
-Reranker:
-0.80 → 0.50 Recall@5
-
-Hybrid Search:
-0.80 → 0.70 Recall@5
-```
-
-Both approaches were therefore rejected for the final pipeline.
-
-This project uses evaluation-driven development: retrieval changes are measured before being accepted into the final RAG pipeline.

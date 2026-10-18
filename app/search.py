@@ -1,14 +1,8 @@
-import os
 import psycopg
 from pgvector.psycopg import register_vector
 
+from db import DB_URL
 from embeddings import model
-
-
-DB_URL = os.getenv(
-    "DB_URL",
-    "postgresql://postgres:postgres@127.0.0.1:5433/rag"
-)
 
 
 def search(query: str, limit=5):
