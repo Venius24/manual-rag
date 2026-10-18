@@ -1,5 +1,6 @@
 # Manual RAG
-n[![tests](https://github.com/Venius24/manual-rag/actions/workflows/tests.yml/badge.svg)](https://github.com/Venius24/manual-rag/actions/workflows/tests.yml)
+
+[![tests](https://github.com/Venius24/manual-rag/actions/workflows/tests.yml/badge.svg)](https://github.com/Venius24/manual-rag/actions/workflows/tests.yml)
 
 A Retrieval-Augmented Generation service built from scratch, without LangChain or
 LlamaIndex: FastAPI, PostgreSQL/pgvector, BGE-M3 embeddings and DeepSeek, plus a
