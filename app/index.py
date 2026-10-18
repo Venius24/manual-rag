@@ -11,7 +11,7 @@ DB_URL = "postgresql://postgres:postgres@127.0.0.1:5433/rag"
 
 
 # 1. Читаем PDF
-text = extract_text(PDF_PATH)
+text = extract_text(PDF_PATH, fix_ligatures=True)
 
 
 # 2. Режем его
