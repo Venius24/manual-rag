@@ -30,6 +30,7 @@ services:
     environment:
       DB_URL: postgresql://postgres:postgres@postgres:5432/rag
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      RETRIEVAL_MODE: ${RETRIEVAL_MODE:-hybrid}
 
     depends_on:
       postgres:
