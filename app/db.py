@@ -22,4 +22,16 @@ def init_schema(conn):
             )
             """
         )
+        cur.execute("ALTER TABLE chunks ADD COLUMN IF NOT EXISTS page INTEGER")
+        # Generated column + GIN index for full-text search. Both are
+        # idempotent; on an existing table Postgres backfills the column.
+        cur.execute(
+            """
+            ALTER TABLE chunks ADD COLUMN IF NOT EXISTS tsv tsvector
+            GENERATED ALWAYS AS (to_tsvector('english', text)) STORED
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING GIN (tsv)"
+        )
     conn.commit()

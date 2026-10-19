@@ -14,15 +14,9 @@ def keyword_search(query: str, limit=5):
                 SELECT
                     id,
                     text,
-                    ts_rank(
-                        to_tsvector('english', text),
-                        websearch_to_tsquery('english', %s)
-                    ) AS rank
+                    ts_rank(tsv, websearch_to_tsquery('english', %s)) AS rank
                 FROM chunks
-                WHERE
-                    to_tsvector('english', text)
-                    @@
-                    websearch_to_tsquery('english', %s)
+                WHERE tsv @@ websearch_to_tsquery('english', %s)
                 ORDER BY rank DESC
                 LIMIT %s
                 """,
