@@ -4,7 +4,7 @@ import psycopg
 from pgvector.psycopg import register_vector
 
 from db import DB_URL, init_schema
-from ingest import extract_text, chunk_text
+from ingest import extract_pages, chunk_pages
 from embeddings import model
 
 
@@ -13,10 +13,12 @@ PDF_PATH = "data/Calculus-Lecture.pdf"
 
 def main(pdf_path=PDF_PATH):
     # 1. Читаем PDF
-    text = extract_text(pdf_path, fix_ligatures=True)
+    pages = extract_pages(pdf_path, fix_ligatures=True)
 
-    # 2. Режем его
-    chunks = chunk_text(text)
+    # 2. Режем его (запоминая страницу начала каждого чанка)
+    chunk_list = chunk_pages(pages)
+    chunks = [chunk for chunk, _ in chunk_list]
+    chunk_pages_ = [page for _, page in chunk_list]
 
     print("Чанков:", len(chunks))
 
@@ -41,14 +43,14 @@ def main(pdf_path=PDF_PATH):
             cur.execute("DELETE FROM chunks")
 
             # 5. Сохраняем каждый chunk + embedding
-            for chunk, embedding in zip(chunks, embeddings):
+            for chunk, page, embedding in zip(chunks, chunk_pages_, embeddings):
 
                 cur.execute(
                     """
-                    INSERT INTO chunks (text, embedding)
-                    VALUES (%s, %s)
+                    INSERT INTO chunks (text, page, embedding)
+                    VALUES (%s, %s, %s)
                     """,
-                    (chunk, embedding)
+                    (chunk, page, embedding)
                 )
 
         conn.commit()

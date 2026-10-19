@@ -95,3 +95,19 @@ def test_extract_text_ligatures_opt_in(monkeypatch):
     monkeypatch.setattr(ingest.pymupdf, "open", lambda path: [Page()])
     assert ingest.extract_text("x.pdf") == "deﬁnition of inﬂection"
     assert ingest.extract_text("x.pdf", fix_ligatures=True) == "definition of inflection"
+
+
+def test_chunk_pages_tracks_start_page():
+    from ingest import chunk_pages
+
+    pages = ["a" * 100, "b" * 100, "c" * 100]
+    out = chunk_pages(pages, chunk_size=60, overlap=20)  # chunk starts 0,40,...,280
+    assert [p for _, p in out] == [1, 1, 1, 2, 2, 3, 3, 3]
+    assert "".join(c for c, _ in out)[:60] == ("a" * 60)
+
+
+def test_chunk_pages_empty():
+    from ingest import chunk_pages
+
+    assert chunk_pages([]) == []
+    assert chunk_pages([""]) == []
