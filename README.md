@@ -15,18 +15,26 @@ PDF ─► PyMuPDF ─► chunking (1500 chars, 300 overlap) ─► BGE-M3 embed
                                                               ▼
                                                     PostgreSQL + pgvector
                                                               │
-question ─► BGE-M3 embedding ─► cosine search, top-5 ─────────┘
+question ─► retrieval (RETRIEVAL_MODE), top-5 ────────────────┘
                                         │
                                         ▼
                          DeepSeek, answer from context only ─► answer + sources (FastAPI)
 ```
 
-The service uses dense retrieval. Hybrid (dense + Postgres full-text search, RRF)
-and a cross-encoder reranker are implemented in `app/hybrid_search.py` and
-`app/search.py::search_with_rerank`. Both scored higher on top-rank quality in the
-evaluation below, but they are not the default yet: the evaluated hybrid uses
-BM25 rather than the app's Postgres full-text search, and the reranker adds
-seconds of CPU latency per query. Switching the default is the next step.
+Retrieval is selected with the `RETRIEVAL_MODE` environment variable:
+
+| Mode | What it does | `score` in sources |
+|---|---|---|
+| `hybrid` (default) | dense top-20 + Postgres full-text search top-20, fused with RRF (k=60) | `rrf`, higher is better |
+| `dense` | pgvector cosine search | `cosine_distance`, lower is better |
+| `rerank` | dense top-20 re-scored by `bge-reranker-v2-m3` | `reranker`, higher is better |
+
+Hybrid and rerank both scored higher on top-rank quality than dense in the
+evaluation below. Hybrid is the default because it costs one extra indexed SQL
+query, while the reranker adds seconds of CPU latency per query and loads a
+second large model. Caveat: the evaluated hybrid fused dense with BM25, while the
+app fuses dense with Postgres full-text search (`ts_rank`), so the app's hybrid
+numbers have not been measured.
 
 ## Stack
 
@@ -43,7 +51,8 @@ frozen before any experiment; construction in `eval/README.md`). A chunk counts 
 relevant if it covers at least half of the gold evidence span. Metrics are over
 the 44 answerable questions; MRR is cut off at rank 10.
 
-Baseline pipeline as shipped (text extracted as-is), run `2026-10-17`, seed 0:
+Baseline run `2026-10-17`, seed 0, PDF text indexed without ligature expansion
+(the app now expands ligatures at index time, see the second table):
 
 | Retriever | Chunking | recall@1 | recall@3 | recall@5 | recall@10 | MRR@10 |
 |---|---|---:|---:|---:|---:|---:|
@@ -76,7 +85,7 @@ only partially (AUROC ≈ 0.95 on 6 negatives, with overlapping ranges).
 ```bash
 python -m venv venv && venv/Scripts/activate     # Windows; use venv/bin/activate on Linux/macOS
 pip install -r requirements-dev.txt
-pytest                                           # 45 tests, offline
+pytest                                           # offline, no DB or API key
 python eval/run_eval.py --seed 0                 # baseline rows (reranker rows take ~1h on CPU)
 python eval/run_eval.py --seed 0 --fix-ligatures --configs dense bm25 hybrid --tag ligature_fix
 ```
@@ -141,6 +150,11 @@ http://127.0.0.1:8000/docs
 
 ### POST /ask
 
+`question` must be 1–2000 characters, otherwise the API answers `422`. If the
+database or the LLM is unreachable the API answers `503` with a short message
+(the LLM client uses a 30 s timeout and 2 retries; see `LLM_TIMEOUT`,
+`LLM_MAX_RETRIES`).
+
 Request:
 
 ```json
@@ -154,11 +168,14 @@ Response:
 ```json
 {
   "question": "How do I differentiate two functions that are multiplied together?",
+  "retrieval_mode": "hybrid",
   "answer": "Use the Product Rule...",
   "sources": [
     {
       "chunk_id": 240,
-      "distance": 0.41,
+      "page": 87,
+      "score": 0.0325,
+      "score_type": "rrf",
       "text": "..."
     }
   ]
@@ -178,8 +195,12 @@ python app/index.py         # creates the table and indexes data/Calculus-Lectur
 ```
 
 `app/index.py` connects to `DB_URL` (default: the compose Postgres on
-`127.0.0.1:5433`) and creates the `vector` extension and the `chunks` table if
-they do not exist. The API is at `http://127.0.0.1:8000`, Swagger at `/docs`.
+`127.0.0.1:5433`), creates the `vector` extension, the `chunks` table, the
+full-text `tsv` column with its GIN index and the `page` column if they do not
+exist, then re-indexes the PDF (existing rows are replaced). The API also
+applies this schema at startup, but chunks indexed by an older version have no
+page numbers until `index.py` is run again. Settings (`DEEPSEEK_API_KEY`,
+`RETRIEVAL_MODE`, ...) are listed in `.env.example`. The API is at `http://127.0.0.1:8000`, Swagger at `/docs`.
 Inside Docker the API reaches Postgres at `postgres:5432`.
 
 For a quick terminal session without the API: `python app/rag.py`.
@@ -190,21 +211,24 @@ For a quick terminal session without the API: `python app/rag.py`.
 manual-rag/
 ├── app/
 │   ├── main.py              # FastAPI: /ask, /health
-│   ├── db.py                # DB_URL and schema
-│   ├── ingest.py            # PDF extraction and chunking
+│   ├── db.py                # DB_URL and schema (chunks, FTS index, page)
+│   ├── ingest.py            # PDF extraction, chunking, page tracking
 │   ├── index.py             # embed chunks and write them to pgvector
 │   ├── embeddings.py        # BGE-M3
 │   ├── search.py            # dense search, dense + reranker
+│   ├── retriever.py         # RETRIEVAL_MODE dispatch, chunk pages
 │   ├── keyword_search.py    # Postgres full-text search
 │   ├── hybrid_search.py     # RRF fusion
 │   ├── reranker.py          # bge-reranker-v2-m3
-│   ├── llm.py               # DeepSeek client
+│   ├── llm.py               # DeepSeek client (timeout, retries)
 │   ├── rag.py               # terminal Q&A
 │   └── evaluate_answer.py   # LLM-as-a-judge generation eval
 ├── eval/                    # frozen 50-question set, harness, results, analysis
 ├── evals/questions.json     # earlier 10-question set used by evaluate_answer.py
 ├── tests/                   # offline pytest suite
 ├── data/Calculus-Lecture.pdf
+├── .env.example
+├── .github/workflows/tests.yml
 ├── Dockerfile
 └── docker-compose.yml
 ```
