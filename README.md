@@ -33,8 +33,8 @@ Hybrid and rerank both scored higher on top-rank quality than dense in the
 evaluation below. Hybrid is the default because it costs one extra indexed SQL
 query, while the reranker adds seconds of CPU latency per query and loads a
 second large model. Caveat: the evaluated hybrid fused dense with BM25, while the
-app fuses dense with Postgres full-text search (`ts_rank`), so the app's hybrid
-numbers have not been measured.
+app fuses dense with Postgres full-text search (`ts_rank`), so the hybrid MRR of
+0.898 below is not verified for the app as it ships.
 
 ## Stack
 
