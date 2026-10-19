@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from search import search
 from llm import generate
@@ -11,8 +11,11 @@ app = FastAPI(
 )
 
 
+MAX_QUESTION_CHARS = 2000
+
+
 class AskRequest(BaseModel):
-    question: str
+    question: str = Field(min_length=1, max_length=MAX_QUESTION_CHARS)
 
 
 @app.get("/health")

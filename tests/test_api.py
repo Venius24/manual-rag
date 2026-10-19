@@ -47,12 +47,16 @@ def test_ask_with_empty_corpus_passes_empty_context(client, monkeypatch):
     assert ctx["c"] == "" and body["sources"] == []
 
 
-def test_ask_non_ascii_and_empty_question(client, monkeypatch):
+def test_ask_non_ascii_question(client, monkeypatch):
     monkeypatch.setattr(main, "search", lambda q, limit=5: [(1, "Производная ∫", 0.0)])
     monkeypatch.setattr(main, "generate", lambda q, c: f"{q}|{c}")
     r = client.post("/ask", json={"question": "Что такое производная?"}).json()
     assert r["answer"].startswith("Что такое производная?|[Chunk 1]\nПроизводная")
-    assert client.post("/ask", json={"question": ""}).status_code == 200
+
+
+def test_ask_rejects_empty_and_oversized_question(client):
+    assert client.post("/ask", json={"question": ""}).status_code == 422
+    assert client.post("/ask", json={"question": "x" * 2001}).status_code == 422
 
 
 def test_ask_missing_question_is_422(client):
