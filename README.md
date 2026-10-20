@@ -120,25 +120,14 @@ tests; every reported number comes from the committed result files.
 
 ## Generation Evaluation
 
-Final RAG answers on the earlier 10-question set (`evals/questions.json`, script `app/evaluate_answer.py`) were evaluated using an LLM-as-a-Judge approach.
-
-The judge scored:
-
-- Correctness
-- Groundedness
-- Relevance
-
-Results:
-
-| Metric | Score |
-|---|---:|
-| Correctness | **4.90 / 5** |
-| Groundedness | **5.00 / 5** |
-| Relevance | **4.90 / 5** |
-
-The generation evaluation currently uses DeepSeek both as the answer generator and as the judge.
-
-Because the judge is not independent from the generator, these scores should be interpreted as development metrics rather than an unbiased benchmark.
+Only a smoke check so far: the final answers on the earlier 10-question set
+(`evals/questions.json`, script `app/evaluate_answer.py`) were scored 1–5 for
+correctness, groundedness and relevance by an LLM judge. The judge is DeepSeek, the
+same model that generates the answers, so the scores sit at the ceiling and do not
+measure quality; they only show that the pipeline produces grounded answers on easy
+questions. A real generation eval needs a larger question set, a judge from another
+model family calibrated against human labels, and questions without an answer in
+the corpus to check refusals.
 
 ## API
 
